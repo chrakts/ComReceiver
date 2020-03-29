@@ -1,13 +1,14 @@
 #include "ComReceiver.h"
+#include "../loraSupervisor/myConstants.h"
 
-ComReceiver::ComReceiver(Communication *output,const char *Node, COMMAND *commands, uint8_t numCommands, INFORMATION *information, uint8_t numInformation)
+ComReceiver::ComReceiver(Communication *output,const char *Node, COMMAND *_commands, uint8_t _numCommands, INFORMATION *_information, uint8_t _numInformation)
 {
   //ctor
   outCom = output;
-  commands = commands;
-  information = information;
-  numCommands = numCommands;
-  numInformation = numInformation;
+  commands = _commands;
+  information = _information;
+  numCommands = _numCommands;
+  numInformation = _numInformation;
   strcpy(node,Node);
   rec_state = RCST_WAIT;
   function=0;
@@ -28,6 +29,18 @@ void ComReceiver::doJob()
 {
 	if (  (rec_state == RCST_DO_JOB) && (job > 0) )
 	{
+    if( encryption==true )
+    {
+      uint8_t data[16];
+      uint8_t i;
+      for( i=0;i<16;i++)
+        data[i] = ( (parameter_text[2*i]-65)<<4 )  +  (parameter_text[2*i+1]-65);
+      outCom->decryptData(data);
+      for( i=0;i<16;i++)
+        parameter_text[i] = data[i];
+      parameter_text[16] = 0;
+    }
+
     if(isBroadcast==false)
     {
       if (SecurityLevel < commands[job-1].security)
@@ -143,20 +156,24 @@ void ComReceiver::comStateMachine()
 					{
 						crc=CRC_NO;
 					}
+					if ( (act_char&2)==2 )
+						encryption=true;
+					else
+						encryption=false;
 					rec_state = RCST_Z1;
 				break;
 				case RCST_Z1:
 					if(crc==CRC_YES)
 						crcGlobal.Data(act_char);
-					if( act_char==node[0] )
-                        rec_state = RCST_Z2;
-                    else
-                    {
-                        if( act_char=='B' )
-                            rec_state = RCST_BR2;
-                        else
-                            rec_state= RCST_WAIT;
-                    }
+          if( act_char==node[0] )
+             rec_state = RCST_Z2;
+          else
+          {
+              if( act_char=='B' )
+                  rec_state = RCST_BR2;
+              else
+                  rec_state= RCST_WAIT;
+          }
 
 /*					switch ( act_char )
 					{
@@ -172,16 +189,16 @@ void ComReceiver::comStateMachine()
 				break;
 				case RCST_Z2:
 					if( act_char==node[1] )
-                    {
+          {
 						if(crc==CRC_YES)
 							crcGlobal.Data(act_char);
 						rec_state = RCST_Q1;
 //						LED_ROT_ON;
-                    }
-                    else
-                    {
-                        rec_state= RCST_WAIT;
-                    }
+          }
+          else
+          {
+              rec_state= RCST_WAIT;
+          }
 /*
 
 					if ( act_char==Node[1] )
@@ -345,6 +362,8 @@ void ComReceiver::comStateMachine()
               ptype = information[job-1].ptype;
               pLength = information[job-1].pLength;
             }
+            if( encryption==true )
+              pLength=33;
 						if( ptype != NOPARAMETER )
 						{
 							parameter_text = (char*) getMemory(ptype,pLength);
@@ -446,6 +465,8 @@ void ComReceiver::comStateMachine()
             ptype = information[job-1].ptype;
             pLength = information[job-1].pLength;
           }
+          if( encryption==true )
+            pLength=33;
 					if ( ptype==STRING )
 					{
 						if( (act_char=='<') )					// Parameterende

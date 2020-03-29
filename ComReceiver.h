@@ -6,7 +6,7 @@
 #include "ctype.h"
 #include "ComReceiver.h"
 
-enum{NOPARAMETER=0,STRING,UINT_8,UINT_16,UINT_32,FLOAT};
+enum{NOPARAMETER=0,STRING,UINT_8,UINT_16,UINT_32,FLOAT,BYTEARRAY};
 enum {NO_ERROR = 0,ERROR_SPEICHER,ERROR_PARAMETER,ERROR_JOB,ERROR_TRANSMISSION};
 enum{MEMORY_ERROR,PARAMETER_ERROR,UNKNOWN_ERROR,TRANSMISSION_ERROR,SECURITY_ERROR,CRC_ERROR,NO_ACTIVE_SENSOR};
 
@@ -83,6 +83,7 @@ class ComReceiver
     uint8_t function;
     uint8_t job;
     uint8_t crc;
+    bool encryption=false;
     uint8_t address;
     char *parameter_text;
     uint8_t parameter_text_length;
