@@ -16,7 +16,7 @@ enum{CRC_NIO,CRC_IO,CRC_NO,CRC_YES};
 enum{CUSTOMER,PRODUCTION,DEVELOPMENT};
 
 
-#define MAX_TEMP_STRING 20
+#define MAX_TEMP_STRING 55
 
 class ComReceiver;
 
@@ -58,7 +58,7 @@ class ComReceiver
     void doJob();
     void comStateMachine();
     void *getMemory(uint8_t type,uint8_t num);
-
+    void interpreteParameter();
     void free_parameter(void);
     uint8_t Getparameter_text_length() { return parameter_text_length; }
     void Setparameter_text_length(uint8_t val) { parameter_text_length = val; }

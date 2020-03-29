@@ -29,18 +29,7 @@ void ComReceiver::doJob()
 {
 	if (  (rec_state == RCST_DO_JOB) && (job > 0) )
 	{
-    if( encryption==true )
-    {
-      uint8_t data[16];
-      uint8_t i;
-      for( i=0;i<16;i++)
-        data[i] = ( (parameter_text[2*i]-65)<<4 )  +  (parameter_text[2*i+1]-65);
-      outCom->decryptData(data);
-      for( i=0;i<16;i++)
-        parameter_text[i] = data[i];
-      parameter_text[16] = 0;
-    }
-
+    interpreteParameter();
     if(isBroadcast==false)
     {
       if (SecurityLevel < commands[job-1].security)
@@ -83,10 +72,109 @@ void ComReceiver::doJob()
 	}
 }
 
+void ComReceiver::interpreteParameter()
+{
+uint8_t ptype,pLength,parameterCounter=0;
+void *parameterPointer=nullptr;
+
+  if( encryption==true )
+  {
+    uint8_t data[16];
+    uint8_t i;
+    for( i=0;i<16;i++)
+      data[i] = ( (parameter_text[2*i]-65)<<4 )  +  (parameter_text[2*i+1]-65);
+    outCom->decryptData(data);
+    outCom->getEncryptData(data);
+    for( i=0;i<16;i++)
+      parameter_text[i] = data[i];
+    parameter_text[16] = 0;
+  }
+
+  if( isBroadcast==false)
+  {
+    ptype = commands[job-1].ptype;
+    pLength = commands[job-1].pLength;
+  }
+  else
+  {
+    ptype = information[job-1].ptype;
+    pLength = information[job-1].pLength;
+  }
+  switch(ptype)
+  {
+    case FLOAT:
+      parameterPointer = malloc(sizeof(float)*pLength);
+    break;
+    case UINT_8:
+      parameterPointer = malloc(sizeof(uint8_t)*pLength);
+    break;
+    case UINT_16:
+      parameterPointer = malloc(sizeof(uint16_t)*pLength);
+    break;
+    case UINT_32:
+      parameterPointer = malloc(sizeof(uint32_t)*pLength);
+    break;
+  }
+
+  switch(ptype)
+  {
+    case BYTEARRAY:
+      if( encryption==false )
+      {
+        uint8_t i;
+        for( i=0;i<pLength;i++)
+          parameter_text[i] = ( (parameter_text[2*i]-65)<<4 )  +  (( parameter_text[2*i+1]-65)&0x0f );
+      }
+    break;
+    case STRING:
+    break;
+    default:
+      char *abschnitt;
+      abschnitt = strtok(parameter_text, ";,");
+
+      while(abschnitt != nullptr)
+      {
+        uint32_t wert;
+        switch(ptype)
+        {
+          case UINT_8:
+            wert = strtoul(abschnitt,NULL,0);
+            if(wert<=255)
+              ((uint8_t *)parameterPointer)[parameterCounter] = wert;
+            else
+              wert=0;
+          break;
+          case UINT_16:
+            wert = strtoul(abschnitt,NULL,0);
+            if(wert<=65535)
+              ((uint16_t *)parameterPointer)[parameterCounter] = wert;
+            else
+              wert=0;
+          break;
+          case UINT_32:
+            ((uint32_t *)parameterPointer)[parameterCounter] = strtoul(abschnitt,NULL,0);
+          break;
+          case FLOAT:
+            ((float *)parameterPointer)[parameterCounter] = strtod(abschnitt,NULL);
+          break;
+        }
+        abschnitt = strtok(NULL, ";,");
+        parameterCounter++;
+        if(parameterCounter==pLength)
+          abschnitt = nullptr;
+      }
+    break;
+  }
+  if(parameterPointer!=nullptr)
+  {
+    free(parameter_text);
+    parameter_text = (char *) parameterPointer;
+  }
+}
+
 void ComReceiver::comStateMachine()
 {
 	uint8_t ready,i;
-	uint8_t error = NO_ERROR;
 	char act_char,temp;
 	static char crcString[5];
 	static uint8_t crcIndex;
@@ -174,18 +262,6 @@ void ComReceiver::comStateMachine()
               else
                   rec_state= RCST_WAIT;
           }
-
-/*					switch ( act_char )
-					{
-						case Node[0]:
-							rec_state_KNET = RCST_Z2;
-						break;
-						case 'B':
-							rec_state_KNET = RCST_BR2;
-						break;
-						default:
-							rec_state_KNET= RCST_WAIT;
-					}*/
 				break;
 				case RCST_Z2:
 					if( act_char==node[1] )
@@ -199,19 +275,6 @@ void ComReceiver::comStateMachine()
           {
               rec_state= RCST_WAIT;
           }
-/*
-
-					if ( act_char==Node[1] )
-					{
-						if(crc_KNET==CRC_YES)
-							crcGlobal.Data(act_char);
-						rec_state_KNET = RCST_Q1;
-						LED_ROT_ON;
-					}
-					else
-					{
-						rec_state_KNET= RCST_WAIT;
-					}*/
 				break;
 				case RCST_BR2:
           if ( act_char=='R' )
@@ -351,30 +414,20 @@ void ComReceiver::comStateMachine()
 					}
 					else
 					{
-            uint8_t ptype,pLength;
+            uint8_t ptype;
             if( isBroadcast==false)
-            {
               ptype = commands[job-1].ptype;
-              pLength = commands[job-1].pLength;
-            }
             else
-            {
               ptype = information[job-1].ptype;
-              pLength = information[job-1].pLength;
-            }
-            if( encryption==true )
-              pLength=33;
 						if( ptype != NOPARAMETER )
 						{
-							parameter_text = (char*) getMemory(ptype,pLength);
+							parameter_text = (char*) getMemory(STRING,MAX_TEMP_STRING);
 							if (parameter_text==NULL)
 							{
 								outCom->sendInfo("!!!!!Error!!!!!!","BR");
 							}
-							parameter_text_length = pLength;
-							if( ptype != STRING )
-								temp_parameter_text = (char *) getMemory(STRING,MAX_TEMP_STRING);
-							rec_state = RCST_GET_DATATYPE;
+							parameter_text_length = MAX_TEMP_STRING;
+						rec_state = RCST_GET_DATATYPE;
 						}
 						else
 							rec_state = RCST_NO_PARAMETER;
@@ -441,7 +494,6 @@ void ComReceiver::comStateMachine()
 					}
 				break;
 				case RCST_WAIT_END2:
-					//if( act_char=='\n' )
 					if( (act_char=='\r') | (act_char=='\n') )
 						rec_state = RCST_DO_JOB;
 					else
@@ -454,135 +506,32 @@ void ComReceiver::comStateMachine()
 				case RCST_GET_PARAMETER:
 					if(crc==CRC_YES)
 						crcGlobal.Data(act_char);
-          uint8_t ptype,pLength;
-          if( isBroadcast==false)
+          if( (act_char=='<') )					// Parameterende
           {
-            ptype = commands[job-1].ptype;
-            pLength = commands[job-1].pLength;
+            if(crc==CRC_YES)
+              rec_state = RCST_CRC;
+            else
+              rec_state = RCST_WAIT_END1;
+
+            parameter_text[parameter_text_pointer] = 0;
           }
           else
           {
-            ptype = information[job-1].ptype;
-            pLength = information[job-1].pLength;
+            if( parameter_text_pointer < parameter_text_length-2 )
+            {
+              parameter_text[parameter_text_pointer] = act_char;
+              parameter_text_pointer++;
+            }
+            else // zu langer Parameter
+            {
+              rec_state = RCST_WAIT;
+              function = 0;
+              free_parameter();
+            }
           }
-          if( encryption==true )
-            pLength=33;
-					if ( ptype==STRING )
-					{
-						if( (act_char=='<') )					// Parameterende
-						{
-							if(crc==CRC_YES)
-								rec_state = RCST_CRC;
-							else
-								rec_state = RCST_WAIT_END1;
-
-							parameter_text[parameter_text_pointer] = 0;
-//							input->println("-----------------");
-//							input->println(parameter_text);
-						}
-						else
-						{
-							if( parameter_text_pointer < parameter_text_length-2 )
-							{
-								parameter_text[parameter_text_pointer] = act_char;
-								parameter_text_pointer++;
-							}
-							else // zu langer Parameter
-							{
-								rec_state = RCST_WAIT;
-								error = ERROR_PARAMETER;
-								function = 0;
-								free_parameter();
-							}
-
-						}
-					} // if STRING
-					else // if some Number-Parameter
-					{
-						if ((act_char=='<') || (act_char==','))
-						{
-							errno = 0;
-							temp_parameter_text[temp_parameter_text_pointer] = 0;		// Zahlenstring abschießen
-							if ( parameter_text_pointer < pLength )   // wird noch ein Parameter erwartet?
-							{
-								uint32_t wert;
-								switch(ptype)
-								{
-									case UINT_8:
-										uint8_t *pointer_u8;
-										pointer_u8 =  (uint8_t*) parameter_text;
-										wert = strtoul(temp_parameter_text,NULL,0);
-										if(wert<256)
-											pointer_u8[parameter_text_pointer] = (uint8_t) wert;
-										else
-											error = ERROR_PARAMETER;
-									break;
-									case UINT_16:
-										uint16_t *pointer_u16;
-										pointer_u16 =  (uint16_t*) parameter_text;
-										wert = strtoul(temp_parameter_text,NULL,0);
-										if(wert<65536)
-											pointer_u16[parameter_text_pointer] = (uint16_t) wert;
-										else
-											error = ERROR_PARAMETER;
-//										input->println(temp_parameter_text);	!!!!!!!!!!!!!!!!!auskommentiert!!!!!!!!!!!!!!!!!!!!
-//										input->pformat("Wert: %\>d\n",wert);		!!!!!!!!!!!!!!!!!auskommentiert!!!!!!!!!!!!!!!!!!!!
-									break;
-									case UINT_32:
-										uint32_t *pointer_u32;
-										pointer_u32 =  (uint32_t*) parameter_text;
-										pointer_u32[parameter_text_pointer] = strtoul(temp_parameter_text,NULL,0);
-									break;
-									case FLOAT:
-										double *pointer_d;
-										pointer_d =  (double*) parameter_text;
-										pointer_d[parameter_text_pointer] = strtod(temp_parameter_text,NULL);
-									break;
-								}
-							}
-							else
-								error = ERROR_PARAMETER;
-							if( parameter_text_pointer < parameter_text_length-1 ) // Zeiger auf nächsten Parameter
-							{
-								parameter_text_pointer++;
-								temp_parameter_text_pointer = 0;						// zurücksetzen für nächsten Parameter
-							}
-							else
-                            {
-                                    ;
-                            } // hier noch abfangen falls zu viele Parameter eingeben wurden
-							if ( errno != 0)
-								error = ERROR_PARAMETER;
-							if ((act_char=='<'))
-							{
-								if(crc==CRC_YES)
-									rec_state = RCST_CRC;
-								else
-									rec_state = RCST_WAIT_END1;
-							}
-							/* hier noch abfangen, falls zu wenige Parameter eingegeben wurden ************************ */
-						}
-						else // weiterer Character eines Parameters
-						{
-							if( temp_parameter_text_pointer < MAX_TEMP_STRING-2 )
-							{
-								temp_parameter_text[temp_parameter_text_pointer] = act_char;
-								temp_parameter_text_pointer++;
-							}
-							else // zu langer Parameter
-								error = ERROR_JOB;
-						}
-						if ( error != NO_ERROR )
-						{
-								function = 0;
-								rec_state = RCST_WAIT;
-								free_parameter();
-						}
-					}
 				break; // case RCST_GET_PARAMETER
 
 			} // end of switch
-//			input->pformat("State: %x, char:%x, job:%d\r\n",rec_state,act_char,job);
 		}
 	}
 }
@@ -605,6 +554,9 @@ void *mem=NULL;
 	{
 		case STRING:
 			size = 1;
+		break;
+		case BYTEARRAY:
+			size = 2;
 		break;
 		case UINT_8:
 			size = 1;
