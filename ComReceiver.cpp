@@ -1,5 +1,4 @@
 #include "ComReceiver.h"
-#include "../loraSupervisor/myConstants.h"
 
 ComReceiver::ComReceiver(Communication *output,const char *Node, COMMAND *_commands, uint8_t _numCommands, INFORMATION *_information, uint8_t _numInformation)
 {
@@ -29,42 +28,49 @@ void ComReceiver::doJob()
 {
 	if (  (rec_state == RCST_DO_JOB) && (job > 0) )
 	{
-    interpreteParameter();
-    if(isBroadcast==false)
+    if(job==255) // das ist der CRC-Fehler-JOB
     {
-      if (SecurityLevel < commands[job-1].security)
+      outCom->sendAnswer(fehler_text[CRC_ERROR],quelle,commands[0].function,address,commands[0].job,false);
+    }
+    else
+    {
+      interpreteParameter();
+      if(isBroadcast==false)
       {
-         outCom->sendAnswer(fehler_text[SECURITY_ERROR],quelle,commands[job-1].function,address,commands[job-1].job,false);
-      }
-      else
-      {
-        if ( job<=numCommands )
+        if (SecurityLevel < commands[job-1].security)
         {
-          commands[job-1].commandFunction(this,commands[job-1].function,address,commands[job-1].job, parameter_text);
+           outCom->sendAnswer(fehler_text[SECURITY_ERROR],quelle,commands[job-1].function,address,commands[job-1].job,false);
+        }
+        else
+        {
+          if ( job<=numCommands )
+          {
+            commands[job-1].commandFunction(this,commands[job-1].function,address,commands[job-1].job, parameter_text);
+          }
         }
       }
-		}
-		else // isBroadcast==true
-		{
-      switch( information[job-1].ptype )
+      else // isBroadcast==true
       {
-        case FLOAT:
-          *( (float *)information[job-1].targetVariable ) = ((float *)parameter_text)[0];
-        break;
-        case UINT_32:
-          *( (uint32_t *)information[job-1].targetVariable ) = ((uint32_t *)parameter_text)[0];
-        break;
-        case UINT_8:
-          *( (uint8_t *)information[job-1].targetVariable ) = ((uint8_t *)parameter_text)[0];
-        break;
-        case STRING: // nicht getestet
-          strncpy( (char *)information[job-1].targetVariable , (char *)parameter_text, (size_t)information[job-1].pLength);
-        break;
+        switch( information[job-1].ptype )
+        {
+          case FLOAT:
+            *( (float *)information[job-1].targetVariable ) = ((float *)parameter_text)[0];
+          break;
+          case UINT_32:
+            *( (uint32_t *)information[job-1].targetVariable ) = ((uint32_t *)parameter_text)[0];
+          break;
+          case UINT_8:
+            *( (uint8_t *)information[job-1].targetVariable ) = ((uint8_t *)parameter_text)[0];
+          break;
+          case STRING: // nicht getestet
+            strncpy( (char *)information[job-1].targetVariable , (char *)parameter_text, (size_t)information[job-1].pLength);
+          break;
+        }
+        if(information[job-1].gotNewInformation != NULL)
+          information[job-1].gotNewInformation();
+        _delay_ms(30);
       }
-      if(information[job-1].gotNewInformation != NULL)
-        information[job-1].gotNewInformation();
-      _delay_ms(30);
-		}
+    }
 		free_parameter();
 		rec_state = RCST_WAIT;
 		function = 0;
@@ -470,7 +476,7 @@ void ComReceiver::comStateMachine()
 							crc=CRC_IO;
 							if(crcGlobal.compare(crcString) != true )
 							{
-								job = 1;	// das ist der CRC-Error-Job
+								job = 255;	// das ist der CRC-Error-Job
 							}
 							rec_state = RCST_WAIT_END1;
 						}
@@ -541,9 +547,19 @@ void ComReceiver::sendAnswerInt(char function,char address,char job,uint32_t wer
   this->outCom->sendAnswerInt(quelle,function,address,job,wert,noerror);
 }
 
+void ComReceiver::sendAnswerDouble(char function,char address,char job,uint32_t wert,uint8_t noerror)
+{
+  this->outCom->sendAnswerDouble(quelle,function,address,job,wert,noerror);
+}
+
 void ComReceiver::sendAnswer(char const *answer,char function,char address,char job,uint8_t noerror)
 {
   this->outCom->sendAnswer(answer,quelle,function,address,job,noerror);
+}
+
+void ComReceiver::sendPureAnswer(char function,char address,char job,uint8_t noerror)
+{
+  this->outCom->sendPureAnswer(quelle,function,address,job,noerror);
 }
 
 void *ComReceiver::getMemory(uint8_t type,uint8_t num)

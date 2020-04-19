@@ -35,7 +35,7 @@ typedef struct Command COMMAND;
 
 struct Information
 {
-  char quelle[3];
+  const char *quelle;
 	char function;
 	char address;
 	char job;
@@ -75,7 +75,9 @@ class ComReceiver
     void SetSecurityLevel(uint8_t val) { SecurityLevel = val; }
     Communication *Getoutput(){return outCom;}
     void sendAnswerInt(char function,char address,char job,uint32_t wert,uint8_t noerror);
+    void sendAnswerDouble(char function,char address,char job,uint32_t wert,uint8_t noerror);
     void sendAnswer(char const *answer,char function,char address,char job,uint8_t noerror);
+    void sendPureAnswer(char function,char address,char job,uint8_t noerror);
   protected:
 
   private:
