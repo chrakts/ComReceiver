@@ -90,3 +90,10 @@ int v;
 	comRec->sendAnswer(answer,function,address,job,true);
 }
 
+void jobSetSilent(ComReceiver *comRec, char function,char address,char job, void * pMem)
+{
+	uint8_t temp = ( (uint8_t*) pMem )[0];
+	comRec->Getoutput()->setBeSilent(temp);
+	comRec->sendAnswerInt(function,address,job,temp,true);
+}
+

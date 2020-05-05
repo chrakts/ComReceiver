@@ -10,6 +10,7 @@
 		{'S','k',CUSTOMER,NOPARAMETER,0,jobGetSecurityKey}, \
 		{'S','C',DEVELOPMENT,NOPARAMETER,0,jobGetCompilationDate}, \
 		{'S','T',DEVELOPMENT,NOPARAMETER,0,jobGetCompilationTime}, \
+		{'S','S',CUSTOMER,UINT_8,1,jobSetSilent}, \
 		{'S','m',PRODUCTION,NOPARAMETER,0,jobGetFreeMemory}
 
 
@@ -22,6 +23,7 @@ void jobGetCompilationTime(ComReceiver *comRec, char function,char address,char 
 void jobSetSecurityKey(ComReceiver *comRec, char function,char address,char job, void * pMem);
 void jobGetSecurityKey(ComReceiver *comRec, char function,char address,char job, void * pMem);
 void jobGetFreeMemory(ComReceiver *comRec, char function,char address,char job, void * pMem);
+void jobSetSilent(ComReceiver *comRec, char function,char address,char job, void * pMem);
 
 
 #endif // CMULTISTANDARDCOMMANDS_H_INCLUDED
