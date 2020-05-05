@@ -30,3 +30,5 @@
 *.exe
 *.out
 *.app
+
+ComReceiver alt.cpp
