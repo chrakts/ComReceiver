@@ -4,14 +4,14 @@
 #include "Communication.h"
 #include "CRC_Calc.h"
 #include "ctype.h"
-#include "ComReceiver.h"
+#include "ledHardware.h"
 
 enum{NOPARAMETER=0,STRING,UINT_8,UINT_16,UINT_32,FLOAT,BYTEARRAY};
 enum {NO_ERROR = 0,ERROR_SPEICHER,ERROR_PARAMETER,ERROR_JOB,ERROR_TRANSMISSION};
 enum{MEMORY_ERROR,PARAMETER_ERROR,UNKNOWN_ERROR,TRANSMISSION_ERROR,SECURITY_ERROR,CRC_ERROR,NO_ACTIVE_SENSOR};
 
 enum{CRC_NIO,CRC_IO,CRC_NO,CRC_YES};
-enum{ RCST_WAIT=0,RCST_L1,RCST_L2,RCST_HEADER,RCST_Z1,RCST_Z2,RCST_BR2,RCST_Q1,RCST_Q2,RCST_KEADER,RCST_WAIT_NODE,RCST_WAIT_FUNCTION,RCST_WAIT_ADDRESS,RCST_WAIT_JOB,RCST_DO_JOB,RCST_WAIT_END1,RCST_WAIT_END2,RCST_WAITCRC,RCST_CRC,RCST_GET_DATATYPE,RCST_GET_PARAMETER,RCST_NO_PARAMETER,RCST_ATTENTION};
+enum{ RCST_WAIT=0,RCST_L1,RCST_L2,RCST_HEADER,RCST_Z1,RCST_Z2,RCST_BR2,RCST_Q1,RCST_Q2,RCST_KEADER,RCST_WAIT_NODE,RCST_WAIT_FUNCTION,RCST_WAIT_ADDRESS,RCST_WAIT_JOB,RCST_DO_JOB,RCST_WAIT_END1,RCST_WAIT_END2,RCST_WAITCRC,RCST_CRC,RCST_GET_DATATYPE,RCST_GET_PARAMETER,RCST_NO_PARAMETER,RCST_ATTENTION,RCST_RELAIS};
 enum{CUSTOMER,PRODUCTION,DEVELOPMENT};
 
 
@@ -51,7 +51,7 @@ typedef struct Information INFORMATION;
 class ComReceiver
 {
   public:
-    ComReceiver(Communication *output,const char *Node, COMMAND *commands, uint8_t numCommands, INFORMATION *information, uint8_t numInformation);
+    ComReceiver(Communication *output,const char *Node, COMMAND *commands, uint8_t numCommands, INFORMATION *information, uint8_t numInformation, const char *_relays, void  (*sendRelayFunction)(char *relayText) );
     virtual ~ComReceiver();
 
     void doJob();
@@ -69,14 +69,17 @@ class ComReceiver
     void Settemp_parameter_text_length(uint8_t val) { temp_parameter_text_length = val; }
     char Getquelle() { return quelle[3]; }
     void Setquelle(char val) { quelle[3] = val; }
-    uint8_t GetBroadcast() { return isBroadcast; }
+    uint8_t GetInfoType() { return infoType; }
     uint8_t GetSecurityLevel() { return SecurityLevel; }
     void SetSecurityLevel(uint8_t val) { SecurityLevel = val; }
     Communication *Getoutput(){return outCom;}
     void sendAnswerInt(char function,char address,char job,uint32_t wert,uint8_t noerror);
-    void sendAnswerDouble(char function,char address,char job,uint32_t wert,uint8_t noerror);
+    void sendAnswerDouble(char function,char address,char job,double wert,uint8_t noerror);
     void sendAnswer(char const *answer,char function,char address,char job,uint8_t noerror);
     void sendPureAnswer(char function,char address,char job,uint8_t noerror);
+
+    enum{iCOMMAND,iBROADCAST,iRELAY};
+
   protected:
 
   private:
@@ -98,12 +101,17 @@ class ComReceiver
     char node[3];
     uint8_t SecurityLevel;
     const char *fehler_text[7]={"memory errors","parameter error","unknown job","no transmission","command not allowed","CRC error","no active sensor"};
-    uint8_t isBroadcast=false;
+    uint8_t infoType=iCOMMAND;
+    uint8_t infoLength;
+    char    header;
+    char z1;    // erster Buchstabe vom Ziel
     COMMAND *commands;
     INFORMATION *information;
     Communication *outCom;
     uint8_t numCommands;
     uint8_t numInformation;
+    const char *relays;
+    void (*sendRelayFunction) (char *relayText);
     CRC_Calc crcGlobal;
 };
 

@@ -1,6 +1,6 @@
 #include "ComReceiver.h"
 
-ComReceiver::ComReceiver(Communication *output,const char *Node, COMMAND *_commands, uint8_t _numCommands, INFORMATION *_information, uint8_t _numInformation)
+ComReceiver::ComReceiver(Communication *output,const char *Node, COMMAND *_commands, uint8_t _numCommands, INFORMATION *_information, uint8_t _numInformation, const char *_relays,void  (*_sendRelayFunction)  (char *relayText) )
 {
   //ctor
   outCom = output;
@@ -8,6 +8,8 @@ ComReceiver::ComReceiver(Communication *output,const char *Node, COMMAND *_comma
   information = _information;
   numCommands = _numCommands;
   numInformation = _numInformation;
+  sendRelayFunction = _sendRelayFunction;
+  relays = _relays;
   strcpy(node,Node);
   rec_state = RCST_WAIT;
   function=0;
@@ -34,41 +36,50 @@ void ComReceiver::doJob()
     }
     else
     {
-      interpreteParameter();
-      if(isBroadcast==false)
+
+      switch( infoType )    //   if(infoType==iCOMMAND)
       {
-        if (SecurityLevel < commands[job-1].security)
-        {
-           outCom->sendAnswer(fehler_text[SECURITY_ERROR],quelle,commands[job-1].function,address,commands[job-1].job,false);
-        }
-        else
-        {
-          if ( job<=numCommands )
+        case iCOMMAND:
+          interpreteParameter();
+          if (SecurityLevel < commands[job-1].security)
           {
-            commands[job-1].commandFunction(this,commands[job-1].function,address,commands[job-1].job, parameter_text);
+             outCom->sendAnswer(fehler_text[SECURITY_ERROR],quelle,commands[job-1].function,address,commands[job-1].job,false);
           }
-        }
-      }
-      else // isBroadcast==true
-      {
-        switch( information[job-1].ptype )
-        {
-          case FLOAT:
-            *( (float *)information[job-1].targetVariable ) = ((float *)parameter_text)[0];
-          break;
-          case UINT_32:
-            *( (uint32_t *)information[job-1].targetVariable ) = ((uint32_t *)parameter_text)[0];
-          break;
-          case UINT_8:
-            *( (uint8_t *)information[job-1].targetVariable ) = ((uint8_t *)parameter_text)[0];
-          break;
-          case STRING: // nicht getestet
-            strncpy( (char *)information[job-1].targetVariable , (char *)parameter_text, (size_t)information[job-1].pLength);
-          break;
-        }
-        if(information[job-1].gotNewInformation != NULL)
-          information[job-1].gotNewInformation();
-        _delay_ms(30);
+          else
+          {
+            if ( job<=numCommands )
+            {
+              commands[job-1].commandFunction(this,commands[job-1].function,address,commands[job-1].job, parameter_text);
+            }
+          }
+        break;
+        case iBROADCAST:
+          interpreteParameter();
+          switch( information[job-1].ptype )
+          {
+            case FLOAT:
+              *( (float *)information[job-1].targetVariable ) = ((float *)parameter_text)[0];
+            break;
+            case UINT_32:
+              *( (uint32_t *)information[job-1].targetVariable ) = ((uint32_t *)parameter_text)[0];
+            break;
+            case UINT_8:
+              *( (uint8_t *)information[job-1].targetVariable ) = ((uint8_t *)parameter_text)[0];
+            break;
+            case STRING: // nicht getestet
+              strncpy( (char *)information[job-1].targetVariable , (char *)parameter_text, (size_t)information[job-1].pLength);
+            break;
+          }
+          if(information[job-1].gotNewInformation != NULL)
+            information[job-1].gotNewInformation();
+          _delay_ms(30);
+        break;
+        case iRELAY:
+          this->Getoutput()->sendInfo(parameter_text,"BR");
+          this->sendRelayFunction(parameter_text);
+        break;
+        default:
+          ;
       }
     }
 		free_parameter();
@@ -96,7 +107,7 @@ void *parameterPointer=nullptr;
     parameter_text[16] = 0;
   }
 
-  if( isBroadcast==false)
+  if( infoType==iCOMMAND)
   {
     ptype = commands[job-1].ptype;
     pLength = commands[job-1].pLength;
@@ -184,9 +195,7 @@ void ComReceiver::comStateMachine()
 	char act_char,temp;
 	static char crcString[5];
 	static uint8_t crcIndex;
-	uint8_t length;
 
-	char infoType;
 	if( outCom->getChar(act_char) == true )
 	{
 		if( false )
@@ -195,7 +204,6 @@ void ComReceiver::comStateMachine()
 		}
 		else
 		{
-      PORTA.OUT = ~rec_state;
 			switch( rec_state )
 			{
 				case RCST_WAIT:
@@ -203,7 +211,7 @@ void ComReceiver::comStateMachine()
 					{
 						crcIndex = 0;
 						crcGlobal.Reset();
-						isBroadcast = false;
+						infoType = iCOMMAND;
 						crcGlobal.Data(act_char);
 						rec_state = RCST_L1;
  					}
@@ -212,11 +220,11 @@ void ComReceiver::comStateMachine()
 					if( isxdigit(act_char)!=false )
 					{
 						if( act_char<58)
-							length = 16*(act_char-48);
+							infoLength = 16*(act_char-48);
 						else
 						{
 							act_char = tolower(act_char);
-							length = 16*(act_char-87);
+							infoLength = 16*(act_char-87);
 						}
 						crcGlobal.Data(act_char);
 						rec_state = RCST_L2;
@@ -228,19 +236,25 @@ void ComReceiver::comStateMachine()
 					if( isxdigit(act_char)!=false )
 					{
 						if( act_char<58)
-							length += (act_char-48);
+							infoLength += (act_char-48);
 						else
 						{
 							act_char = tolower(act_char);
-							length += (act_char-87);
+							infoLength += (act_char-87);
 						}
-						crcGlobal.Data(act_char);
-						rec_state = RCST_HEADER;
+						if(infoLength<60) // Absicherung, dsendRelayFunctionass nicht durch einen Übertragungsfehler zu lange infoLength angenommen wird.
+            {
+              crcGlobal.Data(act_char);
+              rec_state = RCST_HEADER;
+            }
+            else
+              rec_state = RCST_WAIT;
 					}
 					else
 						rec_state = RCST_WAIT;
 				break;
 				case RCST_HEADER:
+				  header = act_char;
 					if ( (act_char&4)==4 )
 					{
 						crc=CRC_YES;
@@ -259,6 +273,9 @@ void ComReceiver::comStateMachine()
 				case RCST_Z1:
 					if(crc==CRC_YES)
 						crcGlobal.Data(act_char);
+          z1 = act_char;
+          rec_state = RCST_Z2;
+/*
           if( act_char==node[0] )
              rec_state = RCST_Z2;
           else
@@ -267,34 +284,93 @@ void ComReceiver::comStateMachine()
                   rec_state = RCST_BR2;
               else
                   rec_state= RCST_WAIT;
-          }
+          }*/
 				break;
 				case RCST_Z2:
-					if( act_char==node[1] )
+          if(crc==CRC_YES)
+            crcGlobal.Data(act_char);
+          rec_state = RCST_Q1;
+					if( (z1==node[0])  && (act_char==node[1]) )
           {
-						if(crc==CRC_YES)
-							crcGlobal.Data(act_char);
-						rec_state = RCST_Q1;
-//						LED_ROT_ON;
+						;
+          }
+          else if( (z1=='B')  && (act_char=='R') )
+          {
+            infoType = iBROADCAST;
           }
           else
           {
-              rec_state= RCST_WAIT;
+            rec_state= RCST_WAIT;     // falls kein Relays-Treffer
+            for(i=0;i<strlen(relays);i+=2)
+            {
+              if( (z1==relays[i])  && (act_char==relays[i+1]) )
+              {
+                infoType  = iRELAY;
+                job = 1;  // dummy
+                parameter_text = (char*) getMemory(STRING,MAX_TEMP_STRING);
+                parameter_text_length = MAX_TEMP_STRING;
+                //parameter_text[0] = header;
+                parameter_text[0] = z1;
+                parameter_text[1] = act_char;
+                parameter_text[2] = (char) 0;
+                parameter_text_pointer = 2;
+                rec_state = RCST_RELAIS;
+                break;
+              }
+            }
           }
 				break;
-				case RCST_BR2:
+				case RCST_RELAIS:
+          if(crc==CRC_YES)
+            crcGlobal.Data(act_char);
+          if( (act_char=='<') )					// Parameterende
+          {
+            if(crc==CRC_YES)
+              rec_state = RCST_CRC;
+            else
+              rec_state = RCST_WAIT_END1;
+
+            parameter_text[parameter_text_pointer] = 0;
+          }
+          else
+          {
+            if( parameter_text_pointer < parameter_text_length-2 )
+            {
+              parameter_text[parameter_text_pointer] = act_char;
+              parameter_text_pointer++;
+            }
+            else // zu langer Parameter
+            {
+              rec_state = RCST_WAIT;
+              function = 0;
+              free_parameter();
+            }
+          }
+/*				  i = strlen(parameter_text);
+				  if(i<infoLength-8)
+          {
+            parameter_text[parameter_text_pointer] = act_char;
+            parameter_text_pointer++;
+          }*/
+
+         /* if( i>=(infoLength-4) )
+          {
+            rec_state = RCST_WAIT_END1;
+          }*/
+				break;
+/*				case RCST_BR2:
           if ( act_char=='R' )
           {
             if(crc==CRC_YES)
               crcGlobal.Data(act_char);
             rec_state = RCST_Q1;
-            isBroadcast = true;
+            infoType = true;
          }
           else
           {
             rec_state= RCST_WAIT;
           }
-				break;
+				break;*/
 				case RCST_Q1:
 					if(crc==CRC_YES)
 						crcGlobal.Data(act_char);
@@ -309,8 +385,7 @@ void ComReceiver::comStateMachine()
 					rec_state = RCST_KEADER;
 				break;
 				case RCST_KEADER:
-					infoType=act_char;
-					if (infoType=='S')
+					if (act_char=='S')
 					{
 						if(crc==CRC_YES)
 							crcGlobal.Data(act_char);
@@ -326,7 +401,7 @@ void ComReceiver::comStateMachine()
 					ready = false;
 					temp = 0;
 					i = 0;
-					if(isBroadcast==false)
+					if(infoType==iCOMMAND)
 					{
             do
             {
@@ -372,7 +447,7 @@ void ComReceiver::comStateMachine()
 					ready = false;
 					temp = 0;
 					i = 0;
-					if(isBroadcast==false)
+					if(infoType==iCOMMAND)
 					{
             do
             {
@@ -421,7 +496,7 @@ void ComReceiver::comStateMachine()
 					else
 					{
             uint8_t ptype;
-            if( isBroadcast==false)
+            if( infoType==iCOMMAND)
               ptype = commands[job-1].ptype;
             else
               ptype = information[job-1].ptype;
@@ -547,7 +622,7 @@ void ComReceiver::sendAnswerInt(char function,char address,char job,uint32_t wer
   this->outCom->sendAnswerInt(quelle,function,address,job,wert,noerror);
 }
 
-void ComReceiver::sendAnswerDouble(char function,char address,char job,uint32_t wert,uint8_t noerror)
+void ComReceiver::sendAnswerDouble(char function,char address,char job,double wert,uint8_t noerror)
 {
   this->outCom->sendAnswerDouble(quelle,function,address,job,wert,noerror);
 }
