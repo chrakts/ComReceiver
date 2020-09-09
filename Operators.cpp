@@ -21,6 +21,8 @@ void operator delete(void * ptr)
 
 void operator delete(void * ptr,size_t size)
 {
-	free(ptr);
+  ::operator delete(ptr);
+	//free(ptr);
 }
+
 
