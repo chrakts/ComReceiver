@@ -13,6 +13,7 @@
 		{'S','S',CUSTOMER,UINT_8,1,jobSetSilent}, \
 		{'S','m',PRODUCTION,NOPARAMETER,0,jobGetFreeMemory}
 
+#define CMULTI_STANDARD_NUM 10
 
 void jobGotCRCError(ComReceiver *comRec, char function,char address,char job, void * pMem);
 void setBootloaderAttention(ComReceiver *comRec, char function,char address,char job, void * pMem);
