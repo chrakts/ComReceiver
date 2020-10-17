@@ -242,7 +242,7 @@ void ComReceiver::comStateMachine()
 							act_char = tolower(act_char);
 							infoLength += (act_char-87);
 						}
-						if(infoLength<60) // Absicherung, dsendRelayFunctionass nicht durch einen Übertragungsfehler zu lange infoLength angenommen wird.
+						if(infoLength<60) // Absicherung, dass nicht durch einen Übertragungsfehler zu lange infoLength angenommen wird.
             {
               crcGlobal.Data(act_char);
               rec_state = RCST_HEADER;
@@ -436,11 +436,10 @@ void ComReceiver::comStateMachine()
 					function = temp;
 				break;
 				case RCST_WAIT_ADDRESS:
-
 					rec_state = RCST_WAIT_JOB;
 					address = act_char;
-                    if(crc==CRC_YES)
-                        crcGlobal.Data(act_char);
+          if(crc==CRC_YES)
+              crcGlobal.Data(act_char);
 				break;
 				case RCST_WAIT_JOB:
 					rec_state = RCST_NO_PARAMETER;
@@ -508,7 +507,7 @@ void ComReceiver::comStateMachine()
 								outCom->sendInfo("!!!!!Error!!!!!!","BR");
 							}
 							parameter_text_length = MAX_TEMP_STRING;
-						rec_state = RCST_GET_DATATYPE;
+              rec_state = RCST_GET_DATATYPE;
 						}
 						else
 							rec_state = RCST_NO_PARAMETER;
@@ -535,6 +534,7 @@ void ComReceiver::comStateMachine()
 					{
 						if(crc==CRC_YES)
 							crcGlobal.Data(act_char);
+            parameter_text_pointer = 0;
 						rec_state = RCST_GET_PARAMETER;
 					}
 					else
@@ -681,6 +681,7 @@ void ComReceiver::free_parameter(void)
 		parameter_text = NULL;
 		parameter_text_length = 0;
 	}
+	parameter_text_pointer = 0;
 	if (temp_parameter_text != NULL)
 	{
 		free( temp_parameter_text );
