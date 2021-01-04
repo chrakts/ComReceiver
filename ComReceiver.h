@@ -4,7 +4,6 @@
 #include "Communication.h"
 #include "CRC_Calc.h"
 #include "ctype.h"
-#include "ledHardware.h"
 
 enum{NOPARAMETER=0,STRING,UINT_8,UINT_16,UINT_32,FLOAT,BYTEARRAY};
 enum {NO_ERROR = 0,ERROR_SPEICHER,ERROR_PARAMETER,ERROR_JOB,ERROR_TRANSMISSION};
