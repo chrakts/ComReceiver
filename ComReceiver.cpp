@@ -72,7 +72,7 @@ void ComReceiver::doJob()
           }
           if(information[job-1].gotNewInformation != NULL)
             information[job-1].gotNewInformation();
-          _delay_ms(30);
+          //_delay_ms(30);
         break;
         case iRELAY:
           this->Getoutput()->sendInfo(parameter_text,"BR");
@@ -198,10 +198,16 @@ void ComReceiver::comStateMachine()
 
 	if( outCom->getChar(act_char) == true )
 	{
+		//if( act_char=='#' )
 		if( false )
 		{
 			rec_state = RCST_L1;
-		}
+      crcIndex = 0;
+      crcGlobal.Reset();
+      infoType = iCOMMAND;
+      crcGlobal.Data(act_char);
+      free_parameter();
+    }
 		else
 		{
 			switch( rec_state )
@@ -587,29 +593,30 @@ void ComReceiver::comStateMachine()
 				case RCST_GET_PARAMETER:
 					if(crc==CRC_YES)
 						crcGlobal.Data(act_char);
-          if( (act_char=='<') )					// Parameterende
-          {
-            if(crc==CRC_YES)
-              rec_state = RCST_CRC;
-            else
-              rec_state = RCST_WAIT_END1;
+            if( (act_char=='<') )					// Parameterende
+            {
+              if(crc==CRC_YES)
+                rec_state = RCST_CRC;
+              else
+                rec_state = RCST_WAIT_END1;
 
-            parameter_text[parameter_text_pointer] = 0;
-          }
-          else
-          {
-            if( parameter_text_pointer < parameter_text_length-2 )
-            {
-              parameter_text[parameter_text_pointer] = act_char;
-              parameter_text_pointer++;
+              parameter_text[parameter_text_pointer] = 0;
             }
-            else // zu langer Parameter
+            else
             {
-              rec_state = RCST_WAIT;
-              function = 0;
-              free_parameter();
+              if( parameter_text_pointer < parameter_text_length-2 )
+              {
+                parameter_text[parameter_text_pointer] = act_char;
+                parameter_text_pointer++;
+              }
+              else // zu langer Parameter
+              {
+                rec_state = RCST_WAIT;
+                function = 0;
+                free_parameter();
+              }
             }
-          }
+
 				break; // case RCST_GET_PARAMETER
 
 			} // end of switch
