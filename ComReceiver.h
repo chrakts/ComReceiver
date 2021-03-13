@@ -4,6 +4,7 @@
 #include "Communication.h"
 #include "CRC_Calc.h"
 #include "ctype.h"
+#include "secrets.h"
 
 enum{NOPARAMETER=0,STRING,UINT_8,UINT_16,UINT_32,FLOAT,BYTEARRAY};
 enum {NO_ERROR = 0,ERROR_SPEICHER,ERROR_PARAMETER,ERROR_JOB,ERROR_TRANSMISSION};
@@ -39,7 +40,7 @@ struct Information
 	char job;
 	uint8_t ptype;
 	uint8_t pLength;
-	void *targetVariable;
+	volatile void *targetVariable;
 	void  (*gotNewInformation)  ();
 	//void  (*commandFunction)  (ComReceiver *comRec, char function,char address,char job, void *parameterMem);
 };
