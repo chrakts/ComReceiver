@@ -75,7 +75,7 @@ void ComReceiver::doJob()
           //_delay_ms(30);
         break;
         case iRELAY:
-          this->Getoutput()->sendInfo(parameter_text,"BR");
+          //this->Getoutput()->sendInfo(parameter_text,"BR");
           this->sendRelayFunction(parameter_text);
         break;
         default:
@@ -329,7 +329,7 @@ void ComReceiver::comStateMachine()
 				case RCST_RELAIS:
           if(crc==CRC_YES)
             crcGlobal.Data(act_char);
-          if( (act_char=='<') )					// Parameterende
+          if( (act_char=='<') | ((act_char=='?')) )					// Parameterende
           {
             if(crc==CRC_YES)
               rec_state = RCST_CRC;
