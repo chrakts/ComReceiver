@@ -29,6 +29,8 @@ void startBootloader(ComReceiver *comRec, char function,char address,char job, v
   {
     comRec->sendAnswer("Goto BL",function,address,job,true);
     _delay_ms(600);
+    CCP = 0xD8;
+    RST.CTRL = RST_SWRST_bm;
     bootloader();
   }
   else
