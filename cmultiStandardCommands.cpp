@@ -1,4 +1,5 @@
 #include "ComReceiver.h"
+#include "secrets.h"
 
 
 char Compilation_Date[] = __DATE__;
