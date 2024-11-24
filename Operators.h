@@ -1,19 +1,8 @@
-/*
- * IncFile1.h
- *
- * Created: 16.03.2017 15:26:41
- *  Author: a16007
- */
-
-
-#ifndef OPERATORS_H_
-#define OPERATORS_H_
+#pragma once
 
 #include <stdlib.h>
 #include <stddef.h>
 
 void * operator new(size_t size);
 void operator delete(void * ptr);
-
-
-#endif /* OPERATORS_H_ */
+void * operator new[](size_t size);
